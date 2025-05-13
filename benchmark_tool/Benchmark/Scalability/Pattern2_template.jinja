@@ -1,0 +1,100 @@
+{%- import selected_sub_template as RTOS -%}
+//头文件
+{{-RTOS.header()-}}
+
+//define预定义
+{{-RTOS.define()-}}
+#define active_core {{active_core}} 
+
+//定义函数
+{{-RTOS.funcdefine()-}}
+
+// 定义全局semaphore及其他
+{{RTOS.semaphoreDeclaration()}}
+
+{{-RTOS.variables()-}}
+int histogram[1001] = {0};
+int Stress_Frequency=0;
+
+// Target 函数
+{{RTOS.Paralleled_func1_head()}}{
+
+    //target task starts 
+    int core_id={{RTOS.get_core_id()}};    
+    int cnt=0; 
+    uint32_t start_time=0;
+    uint32_t end_time=0;
+    uint32_t execution=0;
+    {{RTOS.ParaVariables()}}
+    {{RTOS.varifyAffinity()}}
+    {{RTOS.print("Paralleltask-%d starts\n",["core_id"])}}
+    {{RTOS.intialize_timer()}} 
+    {{RTOS.barrierwait()}}
+    {{RTOS.timer_gettime1()}}
+    start_time = {{RTOS.timer_gettime()}};
+    //main loop
+    while(execution<{{execution_loop}}){
+         
+        
+        switch (core_id+1) {
+                case 2:
+                    {{RTOS.SemaphoreAcquireAPI("sharedsemaphore2")}}
+                    {{RTOS.SemaphoreReleaseAPI("sharedsemaphore2")}}
+                    break;
+                case 3:
+                    {{RTOS.SemaphoreAcquireAPI("sharedsemaphore3")}}
+                    {{RTOS.SemaphoreReleaseAPI("sharedsemaphore3")}}
+                    break;
+                case 4:
+                    {{RTOS.SemaphoreAcquireAPI("sharedsemaphore4")}}
+                    {{RTOS.SemaphoreReleaseAPI("sharedsemaphore4")}}
+                    break;
+                //case 5:
+                //    {{RTOS.SemaphoreAcquireAPI("sharedsemaphore5")}}
+                //    {{RTOS.SemaphoreReleaseAPI("sharedsemaphore5")}}
+                //    break;  
+                //case 6:
+                //    {{RTOS.SemaphoreAcquireAPI("sharedsemaphore6")}}
+                //    {{RTOS.SemaphoreReleaseAPI("sharedsemaphore6")}}
+                //    break;  
+                
+                default:
+                    {{RTOS.SemaphoreAcquireAPI("sharedsemaphore1")}}
+                    {{RTOS.SemaphoreReleaseAPI("sharedsemaphore1")}}  // 默认情况
+                    break;
+        }
+
+
+
+
+        
+        cnt++;
+        {{RTOS.timer_gettime1()}}
+        end_time={{RTOS.timer_gettime()}};
+        execution={{RTOS.cnt_to_sec()}};
+    } 
+
+    {{RTOS.print("Core%d : %d\n",["core_id","cnt"])}}
+    {{RTOS.print("All evaluation endded, start after process")}} 
+  
+    //after process of RTOS
+    {{RTOS.target_func_after_process()}}
+}
+
+
+
+//Main 函数
+{{RTOS.main_head()}}{
+    
+    {{RTOS.main_variables()}}
+    {{RTOS.initialSemaphore(["sharedsemaphore1", "sharedsemaphore2", "sharedsemaphore3", "sharedsemaphore4", "sharedsemaphore5", "sharedsemaphore6"],"2","2")}}
+    {{RTOS.ParalleledTaskandSetAffinity()}}
+    {{RTOS.main_func_after_process()}}
+
+}
+
+
+
+
+
+

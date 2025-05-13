@@ -1,0 +1,145 @@
+{%- import selected_sub_template as RTOS -%}
+//头文件
+{{-RTOS.header()-}}
+
+//define预定义
+{{-RTOS.define()-}}
+#define active_core {{active_core}} 
+
+//定义函数
+{{-RTOS.funcdefine()-}}
+
+// 定义全局semaphore及其他
+{{RTOS.semaphoreDeclaration()}}
+{{-RTOS.variables()-}}
+{{RTOS.timer_define()}}    //
+long start_time;
+long begin_time;
+long end_time;
+long duration;
+long execution_time;
+int histogram[1001] = {0};
+int Stress_Frequency=0;
+
+// Target 函数1
+{{RTOS.target_func1_head()}}{
+
+    //target task starts
+    {{RTOS.print("Target task1 starts\n")}}   
+    int core_id= 0;
+    {{RTOS.varifyAffinity()}}
+    {{RTOS.Target1Variables()}}
+    {{RTOS.intialize_timer()}}   
+    {{RTOS.timer_gettime1()}} 
+    start_time={{RTOS.timer_gettime()}};
+    begin_time={{RTOS.timer_gettime()}};
+    //main loop
+    while(Stress_Frequency<=100){
+        
+        {{RTOS.timer_gettime1()}} 
+        
+        end_time={{RTOS.timer_gettime()}};
+        duration={{RTOS.duration_calculation()}}; 
+        if(duration/{{RTOS.NSsacle()}}<1000){
+            histogram[duration/{{RTOS.NSsacle()}}]++;
+        }       
+        else histogram[1000]++;
+        execution_time={{RTOS.cnt_to_sec()}}; 
+
+        if(execution_time>={{execution_loop}}){
+            long sum=0;
+            int cnt=0;
+            {{RTOS.print("print histogram for Frequency %d\n",["Stress_Frequency"])}} 
+            for(int i=0;i<1000;++i){
+                if(histogram[i]!=0){
+                    cnt+=histogram[i];
+                    sum+=histogram[i]*i;
+                    {{RTOS.print("%d : %d\n",["i","histogram[i]"])}}
+                }
+            }
+            {{RTOS.print(">1000 : %d\n",["histogram[1000]"])}}
+            if(cnt!=0){
+                {{RTOS.print("average execution time: %d\n",["sum/cnt"])}}
+            }
+            for(int i=0;i<=1000;++i){
+                histogram[i]=0;
+            }
+            Stress_Frequency+={{execution_step}};
+            {{RTOS.timer_gettime1()}}
+            start_time={{RTOS.timer_gettime()}};
+               
+        }
+        {{RTOS.SemaphoreAcquireAPI("sem1")}}; 
+       
+
+    } 
+    {{RTOS.print("All evaluation endded, start after process")}} 
+
+    //after process of RTOS
+	{{RTOS.target_func_after_process()}}
+}
+
+
+{{RTOS.target_func2_head()}}{
+
+    //target task starts
+    {{RTOS.print("Target task2 starts\n")}}  
+    {{RTOS.Target2Variables()}}
+    int core_id=0;
+
+    while(Stress_Frequency<=100){
+        {{RTOS.timer_gettime1()}}
+        begin_time={{RTOS.timer_gettime()}};
+        {{RTOS.SemaphoreReleaseAPI("sem1")}};             
+                     
+    }
+    {{RTOS.print("All evaluation endded, start after process")}} 
+    //after process of RTOS
+    {{RTOS.target_func_after_process()}}
+}
+
+
+// Stress 函数
+{{RTOS.stress_func_head()}}{
+
+	int core_id={{RTOS.get_core_id()}};
+	{{RTOS.varifyAffinity(core_id)}}
+    {{RTOS.StressVariables()}}
+	int rand;
+	int seed={{RTOS.seed()}};
+
+	//stress task starts
+	{{RTOS.print("StressTask-%d starts\n",["core_id"])}}
+	while(Stress_Frequency<=100){
+		rand= rand_r(&seed)%101;     
+		if(rand<=Stress_Frequency){
+			{{RTOS.SemaphoreAccessAPI("sem1")}}
+		}
+		else{
+			{{RTOS.SemaphoreAccessAPI("sem2")}}
+		}
+	}
+    
+    {{RTOS.print("stress on core%d endded \n",["core_id"])}}
+	//after process of RTOS
+	{{RTOS.stress_func_after_process()}}
+}
+
+
+void stress_void(){
+    
+}
+
+
+//Main 函数
+{{RTOS.main_head()}}{
+    
+    {{RTOS.main_variables()}}
+    {{RTOS.initialSemaphore(["sem1","sem2"],"1","0")}}
+    {{RTOS.NestedcreateTaskandSetAffinity()}}
+    {{RTOS.main_func_after_process()}}
+
+}
+
+
+

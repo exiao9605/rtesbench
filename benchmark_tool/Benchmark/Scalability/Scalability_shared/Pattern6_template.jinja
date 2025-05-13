@@ -1,0 +1,62 @@
+{%- import selected_sub_template as RTOS -%}
+//头文件
+{{-RTOS.header()-}}
+
+//define预定义
+{{-RTOS.define()-}}
+#define active_core {{active_core}} 
+
+//定义函数
+{{-RTOS.funcdefine()-}}
+
+// 定义全局semaphore及其他
+{{RTOS.variables()}}
+int histgram[1001] = {0};
+int Stress_Frequency=0;
+
+// Target 函数
+{{RTOS.Paralleled_func1_head()}}{
+
+    //target task starts 
+    int core_id={{RTOS.get_core_id()}};    
+    int cnt=0; 
+    long start_time=0;
+    long end_time=0;
+    long execution=0; 
+    {{RTOS.ParaVariables()}}
+    {{RTOS.varifyAffinity()}}
+    {{RTOS.print("Paralleltask-%d starts\n",["core_id"])}}
+    {{RTOS.timer_gettime1()}}
+    start_time = {{RTOS.timer_gettime()}}; 
+    
+    //main loop
+    while(execution<{{execution_loop}}){
+         
+         {{RTOS.TaskAccessAPI2("task_handler_target")}}
+         cnt++;
+         {{RTOS.timer_gettime1()}}
+         end_time={{RTOS.timer_gettime()}};
+         execution={{RTOS.cnt_to_sec()}};
+    } 
+    {{RTOS.print("Core%d : %d\n",["core_id","cnt"])}}
+    {{RTOS.print("All evaluation endded, start after process")}} 
+  
+    //after process of RTOS
+    {{RTOS.target_func_after_process()}}
+}
+
+void stress_void(){
+    
+}
+
+//Main 函数
+{{RTOS.main_head()}}{
+    
+    {{RTOS.main_variables()}}
+    {{RTOS.ParalleledTaskandSetAffinity()}}
+    {{RTOS.main_func_after_process()}}
+
+}
+
+
+
