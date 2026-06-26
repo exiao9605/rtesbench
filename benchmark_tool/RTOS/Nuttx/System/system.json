@@ -1,0 +1,8 @@
+{
+   "name": "Nuttx",
+   "generated_code_path":"/home/exiao/Research/Nuttx/spresense/benchmark_generator/generated_code/generated_code_main.c",
+   "RTOS_templates": "source/RTOS/Nuttx/RTOStemplate/nuttx_main.jinja",
+   "Configration_path":"",
+   "Configration_templates":""
+
+}

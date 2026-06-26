@@ -1,0 +1,151 @@
+//获取头文件
+{%- macro header() %}
+{% endmacro -%}
+
+//获取define
+{%- macro define() %}
+{% endmacro -%}
+
+//定义计时器timer
+{%- macro timer_define() %}
+{% endmacro -%}
+
+//定义相关函数
+{%- macro funcdefine() %}
+{% endmacro -%}
+
+//定义semaphore变量
+{%- macro semaphoreDeclaration()-%}
+{%- endmacro -%}
+
+//定义dataqueue变量
+{%- macro dtqDeclaration()-%}
+{%- endmacro -%}
+
+//定义eventflag变量
+{%- macro evtflagDeclaration()-%}  
+{%- endmacro -%}
+
+//定义其他变量
+{% macro variables() -%}
+T_RSEM text;
+SYSUTM time;
+PRI pri1;
+PRI pri2;
+{%- endmacro %}
+
+//任务签名
+{%- macro target_func1_head() -%}
+void target_task1(intptr_t exinf)
+{%- endmacro -%}
+
+{%- macro target_func2_head() -%}
+void target_task2(intptr_t exinf)
+{%- endmacro -%}
+
+{%- macro main_head() -%}
+{%- endmacro -%}
+
+{%- macro stress_func_head() -%}
+void stress_task(intptr_t exinf)
+{%- endmacro -%}
+
+//任务后处理
+{% macro target_func_after_process() -%}
+{%- endmacro%}
+
+//压力任务后处理
+{% macro stress_func_after_process() -%}
+{%- endmacro%}
+
+{% macro main_func_after_process() -%}
+{%- endmacro%}
+
+//验证affinity
+{%- macro varifyAffinity(core_id) -%}
+{%- endmacro -%}
+
+//初始化timer
+{%- macro intialize_timer() -%}
+init_hist(1,MAX_MEASURE,); 
+{%- endmacro -%}
+
+//获取timer读数
+{%- macro timer_gettime() -%}
+{%- endmacro -%}
+
+//计算执行时间
+{%- macro duration_calculation() -%}
+{%- endmacro -%}
+
+//timer cnt转换为秒
+{%- macro cnt_to_sec() -%}
+{%- endmacro -%}
+
+//传参获取当前core_id 
+{%- macro get_core_id() -%}
+{%- endmacro -%}
+
+//semaphore 相关 API  
+{% macro SemaphoreAccessAPI(sem_name) -%}
+{%- endmacro %}
+
+{% macro SemaphoreAcquireAPI(sem_name) -%}
+{%- endmacro %}
+
+{% macro SemaphoreReleaseAPI(sem_name) -%}
+sem_post(&{{sem_name}});
+{%- endmacro %}
+
+//task access API
+{% macro TaskAccessAPI(task_handler) -%}
+{%- endmacro %}
+
+//dataqueue相关API
+{% macro dtqSendAPI(dtq_name) -%}
+{%- endmacro %}
+
+{% macro dtqReceiveAPI(dtq_name) -%}
+{%- endmacro %}
+
+{%- macro dtqAccessAPI(dtq_name) -%}
+{%- endmacro -%}
+
+//eventflag相关API
+
+{%- macro eventflagWaitAPI(evtflag_name) %}
+{% endmacro -%}
+
+{%- macro eventflagSetAPI(evtflag_name) %}
+{% endmacro -%}
+
+{%- macro eventflagAccessAPI(evtflag_name) %}
+{% endmacro -%}
+
+//main函数变量
+{% macro main_variables() -%}
+{%- endmacro %}
+
+//main函数 object 初始化
+{% macro initialSemaphore(sem_name1,sem_name2,max,initial) -%}
+{%- endmacro %}
+
+{% macro initialDTQ(dtq_name1,dtq_name2,max) -%}
+{%- endmacro %}
+
+{% macro initialEventflag(evt_name1,evt_name2) -%}
+{%- endmacro %}
+
+
+//single access 任务生成及配置
+{% macro SinglecreateTaskandSetAffinity(active_core) -%}
+{%- endmacro %}
+
+//nested acess 任务生成及配置
+{% macro NestedcreateTaskandSetAffinity(active_core) -%}
+{%- endmacro %}
+
+
+
+
+

@@ -1,0 +1,392 @@
+//获取头文件
+{%- macro header() %}
+#include <nuttx/semaphore.h>
+#include <nuttx/mqueue.h>
+#include <nuttx/clock.h>
+#include <nuttx/config.h>
+#include <nuttx/init.h>
+#include <nuttx/sched.h>
+#include <nuttx/arch.h>
+#include <nuttx/syslog/syslog.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
+#include <fcntl.h> 
+#include <pthread.h>
+{% endmacro -%}
+
+//获取define
+{%- macro define() %}
+#define Priority_High 80
+#define Priority_Mid  50
+#define Priority_Low  20
+#define STACKSIZE   1024
+#define secCNT  156000000
+#define cntnSEC  6.41
+
+#define QUEUE_NAME "/my_mq"
+#define QUEUE_NAME2 "/my_mq2"
+
+#define DEMCR           (*(volatile uint32_t*)0xE000EDFC)
+#define DWT_CTRL        (*(volatile uint32_t*)0xE0001000)
+#define DWT_CYCCNT      (*(volatile uint32_t*)0xE0001004)
+#define DWT_CPICNT      (*(volatile uint32_t*)0xE0001008)
+#define DWT_EXCCNT      (*(volatile uint32_t*)0xE000100C)
+#define DWT_SLEEPCNT    (*(volatile uint32_t*)0xE0001010)
+#define DWT_LSUCNT      (*(volatile uint32_t*)0xE0001014)
+#define DWT_FOLDCNT     (*(volatile uint32_t*)0xE0001018)
+
+#define DEMCR_TRCENA    (1 << 24)
+#define DWT_CTRL_CYCCNTENA (1 << 0)
+#define DWT_CTRL_CPIENA (1 << 17)
+#define DWT_CTRL_EXCENA (1 << 16)
+#define DWT_CTRL_SLEEPENA (1 << 18)
+#define DWT_CTRL_LSUENA (1 << 20)
+#define DWT_CTRL_FOLDENA (1 << 21)
+{% endmacro -%}
+
+{%- macro timer_define() %}
+{% endmacro -%}
+
+{%- macro funcdefine() %}
+extern void enable_dwt_cyccnt(void);
+extern uint32_t read_dwt_cyccnt(void);
+{% endmacro -%}
+
+//定义semaphore
+{%- macro semaphoreDeclaration()-%}
+sem_t
+{%- endmacro -%}
+
+{%- macro dtqDeclaration()-%}
+mqd_t
+{%- endmacro -%}
+
+{%- macro evtflagDeclaration()-%}  
+int
+{%- endmacro -%}
+
+//定义其他变量
+{% macro variables() -%}
+int generator_sem_val;
+int generator_sem_val2;
+int policy;
+struct sched_param param;
+int generator_break_flag=0;
+
+pthread_t pthread1;
+pthread_t pthread2;
+
+pthread_cond_t cond1;
+pthread_mutex_t mutex1;
+pthread_cond_t cond2;
+pthread_mutex_t mutex2;
+int generator_condition=0;
+
+struct mq_attr attr_data_s;
+struct mq_attr attr_data_s2;
+char generator_message1[100]="message";
+char generator_message2[100];
+irqstate_t flags;
+
+{%- endmacro %}
+
+//目标任务签名
+{%- macro target_func1_head() -%}
+static void* task_target1(int argc, FAR char* argv[])
+{%- endmacro -%}
+
+{%- macro target_func2_head() -%}
+static void* task_target2(int argc, FAR char* argv[])
+{%- endmacro -%}
+
+{%- macro main_head() -%}
+int main(int argc, FAR char *argv[])
+{%- endmacro -%}
+
+//压力任务签名
+{%- macro stress_func_head() -%}
+static int task_stress(void *arg)
+{%- endmacro -%}
+
+//目标任务后处理
+{% macro target_func_after_process() -%}
+return 0;
+{%- endmacro%}
+
+//压力任务后处理
+{% macro stress_func_after_process() -%}
+return 0;
+{%- endmacro%}
+
+{% macro main_func_after_process() -%}
+   pthread_join(pthread1, NULL);
+   printf("Target task exit\n");
+   for(int i=1;i<active_core;++i){
+      pthread_join(pthreads[i], NULL);
+      printf("Stress Task %d exit\n", i);
+   }
+{%- endmacro%}
+
+//验证affinity
+{%- macro varifyAffinity(core_id) -%}
+    printf("task_stress %d Wait for affinity\n", core_id);
+    while(1){
+         if(up_cpu_index()==core_id)
+            break;
+    }
+{%- endmacro -%}
+
+//初始化timer
+{%- macro intialize_timer() -%}
+enable_dwt_cyccnt();
+{%- endmacro -%}
+
+//获取timer读数
+{%- macro timer_gettime() -%}
+read_dwt_cyccnt()
+{%- endmacro -%}
+
+//计算执行时间
+{%- macro duration_calculation() -%}
+(int)(end_time-begin_time)*cntnSEC
+{%- endmacro -%}
+
+//timer cnt转换为秒
+{%- macro cnt_to_sec() -%}
+(end_time-start_time)/secCNT
+{%- endmacro -%}
+
+//传参获取当前core_id 
+{%- macro get_core_id() -%}
+(int)arg
+{%- endmacro -%}
+
+//semaphore access API
+{% macro SemaphoreAccessAPI(sem_name) -%}
+sem_getvalue(&{{sem_name}},&generator_sem_val);
+{%- endmacro %}
+
+//task access API
+{% macro TaskAccessAPI2(task_handler) -%}
+{%- if task_handler == "task_handler_target" -%}
+pthread_getschedparam(&pthread1,&policy,&param);
+{%- endif -%}
+{%- if task_handler == "task_handler_self" -%}
+pthread_getschedparam(pthread_self(),&policy,&param);
+{%- endif -%}
+{%- endmacro %}
+
+{% macro SemaphoreAcquireAPI(sem_name) -%}
+sem_wait(&{{sem_name}});
+{%- endmacro %}
+
+{% macro SemaphoreReleaseAPI(sem_name) -%}
+sem_post(&{{sem_name}});
+{%- endmacro %}
+
+{% macro dtqSendAPI(dtq_name) -%}
+mq_send({{dtq_name}},generator_message1,strlen(generator_message1)+1,0);
+{%- endmacro %}
+
+{% macro dtqReceiveAPI(dtq_name) -%}
+mq_receive({{dtq_name}},generator_message2,strlen(generator_message2)+1,NULL);
+{%- endmacro %}
+
+{%- macro dtqAccessAPI1(dtq_name) -%}
+            flags = enter_critical_section();
+            mq_getattr({{dtq_name}},&attr_data_s);
+            leave_critical_section(flags);
+{%- endmacro -%}
+{%- macro dtqAccessAPI2(dtq_name) -%}
+            flags = enter_critical_section();
+            mq_getattr({{dtq_name}},&attr_data_s2);
+            leave_critical_section(flags);
+{%- endmacro -%}
+
+{%- macro eventflagWaitAPI(evtflag_name) %}
+        pthread_mutex_lock(&mutex1);
+        pthread_cond_wait(&cond1, &mutex1); 
+        pthread_mutex_unlock(&mutex1);
+{% endmacro -%}
+
+{%- macro eventflagSetAPI(evtflag_name) %}
+        pthread_mutex_lock(&mutex1);
+        pthread_cond_broadcast(&cond1);
+        pthread_mutex_unlock(&mutex1);
+{% endmacro -%}
+
+{%- macro eventflagAccessAPI(evtflag_name) %}
+{%- if evtflag_name== "evtflag1" %}
+
+        pthread_cond_timedwait(&cond1,&mutex1,0);
+
+{% endif -%}
+{%- if evtflag_name== "evtflag2" %}
+
+        pthread_cond_timedwait(&cond2,&mutex2,0);
+
+{% endif -%}
+{% endmacro -%}
+
+{% macro main_variables() -%}
+   pthread_t pthreads[10];
+   
+   pthread_attr_t attr[10];
+   pthread_attr_t attr1;
+   pthread_attr_t attr2;
+   cpu_set_t cpus;
+   cpu_set_t cpu0;
+
+{%- endmacro %}
+
+{% macro initialSemaphore(sem_name1,sem_name2,max,initial) -%}
+sem_init(&{{sem_name1}},{{initial}},{{max}});
+sem_init(&{{sem_name2}},{{initial}},{{max}});
+{%- endmacro %}
+
+{% macro initialDTQ(dtq_name1,dtq_name2,max) -%}
+   struct mq_attr attr_data;
+   struct mq_attr attr_data2;
+   attr_data.mq_maxmsg ={{max}};
+   attr_data.mq_msgsize = 10;
+   mode_t mode;
+   {{dtq_name1}} = mq_open(QUEUE_NAME,O_RDWR | O_CREAT, 0666, &attr_data);
+   {{dtq_name2}} = mq_open(QUEUE_NAME2,O_RDWR | O_CREAT, 0666, &attr_data);
+{%- endmacro %}
+
+{% macro initialEventflag(evt_name1,evt_name2) -%}
+pthread_condattr_t condattr;
+pthread_condattr_init(&condattr);
+pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC);
+pthread_cond_init(&cond1, &condattr);
+pthread_mutex_init(&mutex1, NULL);
+pthread_cond_init(&cond2, &condattr);
+pthread_mutex_init(&mutex2, NULL);
+{%- endmacro %}
+
+
+//main函数配置
+{% macro SinglecreateTaskandSetAffinity(active_core) -%}
+   printf("Test program start\n");
+  
+   for(int i=1;i<active_core;++i){
+       //create pthread with attr and set affinity
+       struct sched_param param;
+       param.sched_priority = 50;
+       pthread_attr_init(&attr[i]);
+       CPU_ZERO(&cpus);
+       CPU_SET(i,&cpus);
+       if(pthread_attr_setaffinity_np(&attr[i],sizeof(cpu_set_t),&cpus)!=0){
+            printf("set affinity error on attr[%d]",i);
+       }     
+       pthread_attr_setschedpolicy(&attr[i], SCHED_FIFO);
+       pthread_attr_setschedparam(&attr[i],&param);
+   } 
+   
+   struct sched_param param1;
+   param1.sched_priority = 50;
+   pthread_attr_init(&attr1);
+   CPU_ZERO(&cpu0);
+   CPU_SET(0,&cpu0);
+   if(pthread_attr_setaffinity_np(&attr1,sizeof(cpu_set_t),&cpu0)!=0){
+      printf("set affinity error on attr1");
+   }     
+   pthread_attr_setschedpolicy(&attr1, SCHED_FIFO);
+   pthread_attr_setschedparam(&attr1,&param1);
+
+   for(int i=1;i<active_core;++i){
+      pthread_create(&pthreads[i], &attr[i], task_stress, (void*)i); 
+   }
+   printf("Finish Creating Stress Tasks\n");
+   pthread_create(&pthread1, &attr1, task_target1, NULL);
+   printf("Finish Creating target Tasks\n");
+{%- endmacro %}
+
+{% macro NestedcreateTaskandSetAffinity(active_core) -%}
+    
+    for(int i=1;i<active_core;++i){
+        
+        pthread_attr_init(&attr[i]);
+        CPU_ZERO(&cpus);
+        CPU_SET(i,&cpus);
+        if(pthread_attr_setaffinity_np(&attr[i],sizeof(cpu_set_t),&cpus)!=0){
+            printf("set affinity error on attr[%d]",i);
+        }   
+        pthread_attr_setschedpolicy(&attr[i], SCHED_FIFO);
+        struct sched_param param;
+        param.sched_priority=Priority_Mid;
+        pthread_attr_setschedparam(&attr[i],&param);
+
+   }
+
+   //set attr for target task
+   pthread_attr_init(&attr1);
+   pthread_attr_init(&attr2);
+
+   CPU_ZERO(&cpu0);
+   CPU_SET(0,&cpu0);
+
+   if(pthread_attr_setaffinity_np(&attr1,sizeof(cpu_set_t),&cpu0)!=0){
+            printf("set affinity error on attr1");
+   }  
+   if(pthread_attr_setaffinity_np(&attr2,sizeof(cpu_set_t),&cpu0)!=0){
+            printf("set affinity error on attr2");
+   }  
+
+   pthread_attr_setschedpolicy(&attr1, SCHED_FIFO);
+   pthread_attr_setschedpolicy(&attr2, SCHED_FIFO);
+   struct sched_param param1;
+   struct sched_param param2;
+   param1.sched_priority=80;
+   param2.sched_priority=50;
+   pthread_attr_setschedparam(&attr1,&param1);
+   pthread_attr_setschedparam(&attr2,&param2);
+   printf("Test program start\n");
+  
+   //创建stress任务/调度至1-5号核心
+   
+   for(int i=1;i<active_core;++i){
+       pthread_create(&pthreads[i], &attr[i], task_stress, (void*)i);  //Priority HIGH
+   } 
+   printf("Finish Creating Stress Tasks\n");
+   
+   //创建target任务1 设置亲和性
+   pthread_create(&pthread1, &attr1, task_target1, NULL);
+   printf("Finish Creating target Task1\n");  
+   //创建target任务2设置亲和性
+   pthread_create(&pthread2, &attr2, task_target2, NULL);
+   printf("Finish Creating target Task2\n");
+   
+{%- endmacro %}
+
+{% macro ParalleledTaskandSetAffinity() -%}
+    
+    for(int i=0;i<Scala_P1_active_core;++i){
+        pthread_attr_init(&attr[i]);
+        CPU_ZERO(&cpus);
+        CPU_SET(i,&cpus);
+        if(pthread_attr_setaffinity_np(&attr[i],sizeof(cpu_set_t),&cpus)!=0){
+            printf("set affinity error on attr[%d]",i);
+        }   
+        pthread_attr_setschedpolicy(&attr[i], SCHED_FIFO);
+        struct sched_param param;
+        param.sched_priority=Priority_Mid;
+        pthread_attr_setschedparam(&attr[i],&param);
+
+    } 
+    for(int i=0;i<Scala_P1_active_core;++i){
+        pthread_create(&pthreads[i], &attr[i], target_task1, (void*)i); 
+    }
+    printf("Finish Creating target Tasks\n"); 
+
+    //wait for tasks 
+    for(int i=0;i<Scala_P1_active_core;++i){
+        pthread_join(pthreads[i], NULL);
+    }
+
+{%- endmacro %}
+
+
+
